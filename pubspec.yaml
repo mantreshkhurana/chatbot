@@ -1,0 +1,42 @@
+name: chatbot
+description: "A chatbot for Android, iOS, and Web using Flutter and OpenAI's 4o0mini API."
+
+publish_to: "none"
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.7.2
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  cupertino_icons: ^1.0.8
+  flutter_dotenv: ^5.0.2
+  http: ^0.13.6
+  provider: ^6.1.1
+  shared_preferences: ^2.5.2
+  flutter_markdown: ^0.7.3
+  intl: ^0.19.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+  flutter_lints: ^5.0.0
+  icons_launcher: ^3.0.1
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/images/
+    - .env
+
+icons_launcher:
+  image_path: "assets/images/app-logo.png"
+  platforms:
+    android:
+      enable: true
+    ios:
+      enable: true
