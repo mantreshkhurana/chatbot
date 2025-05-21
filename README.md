@@ -1,4 +1,4 @@
-<img src="./images/app-logo.png" width="50" height="50">
+<img src="./assets/images/app-logo.png" width="50" height="50">
 
 # ChatBot
 
