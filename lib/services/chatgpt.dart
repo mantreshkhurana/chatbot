@@ -6,41 +6,65 @@ import 'package:shared_preferences/shared_preferences.dart';
 class ChatGptService {
   String apiKey = dotenv.env['OPENAI_API'] ?? 'API KEY NOT FOUND';
 
-  List<Map<String, String>> _conversationHistory = [];
+  // Private storage of all sessions
+  Map<String, List<Map<String, String>>> _allConversations = {};
+  String _currentSessionId = DateTime.now().toIso8601String();
 
   ChatGptService() {
-    _loadConversationHistory(); // Load history when the service is initialized
+    _loadAllConversations();
   }
 
-  Future<void> _loadConversationHistory() async {
+  String get currentSessionId => _currentSessionId;
+
+  List<Map<String, String>> get currentHistory =>
+      _allConversations[_currentSessionId] ?? [];
+
+  Map<String, List<Map<String, String>>> get allConversations =>
+      _allConversations;
+
+  /// ✅ Add this method to allow session switching
+  void setCurrentSession(String sessionId) {
+    _currentSessionId = sessionId;
+  }
+
+  Future<void> _loadAllConversations() async {
     final prefs = await SharedPreferences.getInstance();
-    final String? savedHistory = prefs.getString('chat_history');
-    if (savedHistory != null) {
-      _conversationHistory = List<Map<String, String>>.from(
-        jsonDecode(savedHistory),
+    final String? raw = prefs.getString('all_conversations');
+    if (raw != null) {
+      final Map<String, dynamic> decoded = jsonDecode(raw);
+      _allConversations = decoded.map(
+        (key, value) => MapEntry(key, List<Map<String, String>>.from(value)),
       );
     }
   }
 
-  Future<void> _saveConversationHistory() async {
+  Future<void> _saveAllConversations() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('chat_history', jsonEncode(_conversationHistory));
+    await prefs.setString('all_conversations', jsonEncode(_allConversations));
+  }
+
+  Future<List<String>> getConversationIds() async {
+    await _loadAllConversations();
+    return _allConversations.keys.toList();
+  }
+
+  void startNewSession() {
+    _currentSessionId = DateTime.now().toIso8601String();
+    _allConversations[_currentSessionId] = [];
+    _saveAllConversations();
   }
 
   Future<String> getChatGptResponse(String userInput) async {
     final url = Uri.parse('https://api.openai.com/v1/chat/completions');
 
-    // Detect if the user wants to generate an image
     if (_isImagePrompt(userInput)) {
       return await generateImage(userInput);
     }
 
-    _conversationHistory.add({"role": "user", "content": userInput});
+    final session = _allConversations[_currentSessionId] ?? [];
+    session.add({"role": "user", "content": userInput});
 
-    // Maintain a conversation window of the last 10 exchanges
-    if (_conversationHistory.length > 10) {
-      _conversationHistory.removeAt(0);
-    }
+    if (session.length > 10) session.removeAt(0);
 
     final response = await http.post(
       url,
@@ -54,11 +78,11 @@ class ChatGptService {
           {
             'role': 'system',
             'content':
-                'You are ChatBot an AI assistant created by Mantresh. '
+                'You are ChatBot, an AI assistant created by Mantresh. '
                 'You help users with daily tasks, calculations, and coding. '
-                'You also remember previous interactions for better responses.',
+                'You remember previous interactions for better responses.',
           },
-          ..._conversationHistory,
+          ...session,
         ],
         'max_tokens': 1000,
         'temperature': 0.7,
@@ -67,18 +91,17 @@ class ChatGptService {
 
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
-      final assistantResponse = data['choices'][0]['message']['content'].trim();
+      final reply = data['choices'][0]['message']['content'].trim();
 
-      _conversationHistory.add({
-        "role": "assistant",
-        "content": assistantResponse,
-      });
+      session.add({"role": "assistant", "content": reply});
+      _allConversations[_currentSessionId] = session;
 
-      await _saveConversationHistory(); // Save updated history
-
-      return assistantResponse;
+      await _saveAllConversations();
+      return reply;
     } else {
-      throw Exception('Failed to load response');
+      throw Exception(
+        'Failed to get response: ${response.statusCode} ${response.body}',
+      );
     }
   }
 
@@ -96,9 +119,11 @@ class ChatGptService {
 
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
-      return data['data'][0]['url']; // Return image URL
+      return data['data'][0]['url'];
     } else {
-      throw Exception('Failed to generate image');
+      throw Exception(
+        'Failed to generate image: ${response.statusCode} ${response.body}',
+      );
     }
   }
 
@@ -107,12 +132,7 @@ class ChatGptService {
     return lowerInput.contains("create an image") ||
         lowerInput.contains("generate an image") ||
         lowerInput.contains("draw") ||
-        lowerInput.contains("picture of");
-  }
-
-  Future<void> clearConversationHistory() async {
-    _conversationHistory.clear();
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('chat_history');
+        lowerInput.contains("picture of") ||
+        lowerInput.contains("image of");
   }
 }

@@ -1,4 +1,4 @@
-name: chatbot
+name: chatbot_flutter
 description: "A chatbot for Android, iOS, and Web using Flutter and OpenAI's 4o0mini API."
 
 publish_to: "none"

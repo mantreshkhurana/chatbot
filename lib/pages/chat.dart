@@ -1,12 +1,9 @@
-import 'package:chatbot/services/chatgpt.dart';
-import 'package:chatbot/widgets/typing_indicator.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:intl/intl.dart';
-import 'package:flutter/services.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
+import 'package:chatbot/services/chatgpt.dart';
+import 'package:chatbot/widgets/typing_indicator.dart';
 
 class ChatPage extends StatefulWidget {
   const ChatPage({super.key});
@@ -17,12 +14,27 @@ class ChatPage extends StatefulWidget {
 
 class ChatPageState extends State<ChatPage> {
   final TextEditingController _controller = TextEditingController();
-  final List<Map<String, dynamic>> _messages = [];
   final ScrollController _scrollController = ScrollController();
   final ChatGptService _chatGptService = ChatGptService();
 
+  List<Map<String, dynamic>> _messages = [];
+  List<String> _conversationIds = [];
+
   bool _isTyping = false;
   bool _isSidebarCollapsed = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadConversations();
+  }
+
+  Future<void> _loadConversations() async {
+    final ids = await _chatGptService.getConversationIds();
+    setState(() {
+      _conversationIds = ids;
+    });
+  }
 
   void _sendMessage(String message) async {
     setState(() {
@@ -38,14 +50,23 @@ class ChatPageState extends State<ChatPage> {
 
     try {
       final response = await _chatGptService.getChatGptResponse(message);
+      final isImage =
+          Uri.tryParse(response)?.hasAbsolutePath == true &&
+          (response.endsWith('.png') ||
+              response.endsWith('.jpg') ||
+              response.contains('openai.com'));
+
       setState(() {
         _messages.add({
           "message": response,
           "isUser": false,
+          "isImage": isImage,
           "time": _getCurrentTime(),
         });
         _isTyping = false;
       });
+
+      _loadConversations(); // Refresh sidebar list
     } catch (e) {
       setState(() {
         _messages.add({
@@ -61,23 +82,49 @@ class ChatPageState extends State<ChatPage> {
     _controller.clear();
   }
 
-  void _toggleSidebar() {
+  void _startNewChat() {
+    _chatGptService.startNewSession();
     setState(() {
-      _isSidebarCollapsed = !_isSidebarCollapsed;
+      _messages.clear();
+    });
+    _loadConversations();
+  }
+
+  void _loadConversation(String sessionId) {
+    final history = _chatGptService.allConversations[sessionId] ?? [];
+    _chatGptService.setCurrentSession(sessionId);
+
+    setState(() {
+      _messages =
+          history.map((m) {
+            return {
+              "message": m["content"],
+              "isUser": m["role"] == "user",
+              "time": _getCurrentTime(),
+            };
+          }).toList();
     });
   }
 
   String _getCurrentTime() {
-    final now = DateTime.now();
-    final DateFormat formatter = DateFormat('h:mm a');
-    return formatter.format(now);
+    return DateFormat('h:mm a').format(DateTime.now());
   }
 
   void _scrollToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_scrollController.hasClients) {
-        _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
+        _scrollController.animateTo(
+          _scrollController.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
       }
+    });
+  }
+
+  void _toggleSidebar() {
+    setState(() {
+      _isSidebarCollapsed = !_isSidebarCollapsed;
     });
   }
 
@@ -98,9 +145,34 @@ class ChatPageState extends State<ChatPage> {
                     _isSidebarCollapsed ? 0 : 15.0,
                   ),
                 ),
-                child: const Column(
-                  children: [],
-                ), // Add sidebar content if needed
+                child: Column(
+                  children: [
+                    ListTile(
+                      leading: const Icon(Icons.edit, color: Colors.white),
+                      title: const Text(
+                        "New Chat",
+                        style: TextStyle(color: Colors.white),
+                      ),
+                      onTap: _startNewChat,
+                    ),
+                    const Divider(color: Colors.white24),
+                    Expanded(
+                      child: ListView.builder(
+                        itemCount: _conversationIds.length,
+                        itemBuilder: (context, index) {
+                          final id = _conversationIds[index];
+                          return ListTile(
+                            title: Text(
+                              'Chat ${index + 1}',
+                              style: const TextStyle(color: Colors.white),
+                            ),
+                            onTap: () => _loadConversation(id),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ),
               ),
               GestureDetector(
                 onTap: _toggleSidebar,
@@ -141,6 +213,7 @@ class ChatPageState extends State<ChatPage> {
                           ),
                         );
                       }
+
                       final message = _messages[index];
                       return _buildMessageBubble(message);
                     },
@@ -169,13 +242,6 @@ class ChatPageState extends State<ChatPage> {
         decoration: BoxDecoration(
           color: isUser ? const Color(0xFF007AFF) : const Color(0xFF2C2C2E),
           borderRadius: BorderRadius.circular(10.0),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.1),
-              blurRadius: 6,
-              offset: const Offset(0, 3),
-            ),
-          ],
         ),
         child: Column(
           crossAxisAlignment:
@@ -231,13 +297,6 @@ class ChatPageState extends State<ChatPage> {
         decoration: BoxDecoration(
           color: const Color(0xFF2C2C2E),
           borderRadius: BorderRadius.circular(20.0),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.1),
-              blurRadius: 6,
-              offset: const Offset(0, 3),
-            ),
-          ],
         ),
         child: Row(
           children: [
@@ -248,15 +307,15 @@ class ChatPageState extends State<ChatPage> {
                 style: const TextStyle(color: Colors.white),
                 maxLines: null,
                 cursorColor: Colors.grey,
-                decoration: InputDecoration(
+                decoration: const InputDecoration(
                   hintText: "Ask ChatBot...",
-                  hintStyle: const TextStyle(color: Colors.white38),
+                  hintStyle: TextStyle(color: Colors.white38),
                   border: InputBorder.none,
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+                  contentPadding: EdgeInsets.symmetric(horizontal: 16),
                 ),
                 onSubmitted: (value) {
-                  if (_controller.text.trim().isNotEmpty) {
-                    _sendMessage(_controller.text.trim());
+                  if (value.trim().isNotEmpty) {
+                    _sendMessage(value.trim());
                   }
                 },
               ),
@@ -266,11 +325,10 @@ class ChatPageState extends State<ChatPage> {
                 CupertinoIcons.paperplane_fill,
                 color: Colors.white,
               ),
-              onPressed: () {
-                if (_controller.text.trim().isNotEmpty) {
-                  _sendMessage(_controller.text.trim());
-                }
-              },
+              onPressed:
+                  _isTyping || _controller.text.trim().isEmpty
+                      ? null
+                      : () => _sendMessage(_controller.text.trim()),
             ),
           ],
         ),

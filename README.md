@@ -1,6 +1,6 @@
 <img src="./assets/images/app-logo.png" width="50" height="50">
 
-# ChatBot
+# ChatBot Flutter
 
 A cross-platform chatbot app using OpenAI API, built with Flutter. This project enables users to create and customize a chatbot application for Android, iOS, and the Web. Perfect for task automation, personal assistants, or experimental AI integration.
 
@@ -39,8 +39,8 @@ A cross-platform chatbot app using OpenAI API, built with Flutter. This project 
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/mantreshkhurana/chatbot.git
-cd chatbot
+git clone https://github.com/mantreshkhurana/chatbot_flutter.git
+cd chatbot_flutter
 flutter pub get
 ```
 
