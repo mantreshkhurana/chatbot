@@ -1,4 +1,4 @@
-import 'package:chatbot/pages/chat.dart';
+import 'package:chatbot_flutter/pages/chat.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 

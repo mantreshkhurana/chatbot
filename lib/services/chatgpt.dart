@@ -6,7 +6,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 class ChatGptService {
   String apiKey = dotenv.env['OPENAI_API'] ?? 'API KEY NOT FOUND';
 
-  // Private storage of all sessions
   Map<String, List<Map<String, String>>> _allConversations = {};
   String _currentSessionId = DateTime.now().toIso8601String();
 
@@ -22,7 +21,6 @@ class ChatGptService {
   Map<String, List<Map<String, String>>> get allConversations =>
       _allConversations;
 
-  /// ✅ Add this method to allow session switching
   void setCurrentSession(String sessionId) {
     _currentSessionId = sessionId;
   }
@@ -78,6 +76,7 @@ class ChatGptService {
           {
             'role': 'system',
             'content':
+                // Edit this system prompt to change the behavior of the AI
                 'You are ChatBot, an AI assistant created by Mantresh. '
                 'You help users with daily tasks, calculations, and coding. '
                 'You remember previous interactions for better responses.',

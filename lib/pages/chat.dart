@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:intl/intl.dart';
-import 'package:chatbot/services/chatgpt.dart';
-import 'package:chatbot/widgets/typing_indicator.dart';
+import 'package:chatbot_flutter/services/chatgpt.dart';
+import 'package:chatbot_flutter/widgets/typing_indicator.dart';
 
 class ChatPage extends StatefulWidget {
   const ChatPage({super.key});
